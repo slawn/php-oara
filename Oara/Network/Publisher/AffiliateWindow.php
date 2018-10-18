@@ -38,6 +38,7 @@ class AffiliateWindow extends \Oara\Network
     private $_pageSize = 100;
     private $_currency = null;
     private $_userId = null;
+    private $_timeZone = "Europe/Berlin";
     public $_sitesAllowed = array();
     public $_credentials = array();
     /**
@@ -53,6 +54,7 @@ class AffiliateWindow extends \Oara\Network
 
         $this->_userId = $credentials['accountid'];
         $password = $credentials['apipassword'];
+        $this->_timeZone = (isset($credentials ['timeZone'])) ? $credentials ['timeZone'] : "Europe/Berlin";
 
         $this->_exportClient = new \Oara\Curl\Access($credentials);
     }
@@ -184,7 +186,7 @@ class AffiliateWindow extends \Oara\Network
      * @param \DateTime|null $dEndDate
      * @return array
      */
-    public function getTransactionList($merchantList = null, \DateTime $dStartDate = null, \DateTime $dEndDate = null, $timezone = 'Europe/Berlin')
+    public function getTransactionList($merchantList = null, \DateTime $dStartDate = null, \DateTime $dEndDate = null)
     {
         $totalTransactions = array();
 
@@ -195,15 +197,16 @@ class AffiliateWindow extends \Oara\Network
 
             $dStartDate_ = $dStartDate->format("Y-m-d");
             //echo "<br>s date ".$dStartDate_;
-            $dStartTime_ = $dStartDate->format("H:s:i");
+            $dStartTime_ = "00:00:00";
             $dEndDate_ = $dEndDate->format("Y-m-d");
-            $dEndTime_ = $dEndDate->format("H:s:i");
+            $dEndTime_ = "23:59:59";
             $dEndDate = urlencode($dEndDate_ . "T" . $dEndTime_);
             $dStartDate = urlencode($dStartDate_ . "T" . $dStartTime_);
-            $timezone = urlencode($timezone);
+            $timezone = urlencode($this->_timeZone);
             //echo "<br>start date " . $dStartDate;
             //$url = 'https://api.awin.com/publishers/'.$id.'/transactions/?accessToken='.$pwd.'&startDate=2017-02-20T00%3A00%3A00&endDate=2017-02-21T01%3A59%3A59&timezone=Europe/Berlin';
             $url = 'https://api.awin.com/publishers/' . $id . '/transactions/?accessToken=' . $pwd . '&startDate=' . $dStartDate . '&endDate=' . $dEndDate . '&timezone=' . $timezone;
+            echo $url;
             $result = \file_get_contents($url);
             //var_dump($result);
             if ($result === false)
@@ -213,7 +216,26 @@ class AffiliateWindow extends \Oara\Network
             } else {
                 //echo "oara step3<br> ";
                 $content = \utf8_encode($result);
-                $totalTransactions = \json_decode($content);
+                $transactionObjectFull = \json_decode($content);
+
+                foreach($transactionObjectFull as $transactionObject){
+                    $transaction = Array();
+                    $transaction['unique_id'] = $transactionObject->id;
+                    $transaction['merchantId'] = $transactionObject->advertiserId;
+                    $date = new \DateTime($transactionObject->transactionDate);
+                    $transaction['date'] = $date->format("Y-m-d H:i:s");
+    
+                    if (isset($transactionObject->clickRefs->clickRef) && $transactionObject->clickRefs->clickRef != null) {
+                        $transaction['custom_id'] = $transactionObject->clickRefs->clickRef;
+                    }
+                    $transaction['type'] = $transactionObject->type;
+                    $transaction['status'] = ($transactionObject->commissionStatus == 'approved') ? 'confirmed' : $transactionObject->commissionStatus;
+                    $transaction['amount'] = \Oara\Utilities::parseDouble($transactionObject->saleAmount->amount);
+                    $transaction['commission'] = \Oara\Utilities::parseDouble($transactionObject->commissionAmount->amount);
+                    $transaction['currency'] = $transactionObject->commissionAmount->currency;
+    
+                    $totalTransactions[] = $transaction;    
+                }
             }
         } catch (\Exception $e) {
             echo "oara step5 :".$e->getMessage()."\n ";
