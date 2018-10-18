@@ -37,6 +37,7 @@ class LinkShare extends \Oara\Network
     private $_client = null;
     private $_siteList = array();
     private $_idSite = null;
+    private $_groupedResults = false;
     private $_token = null;
     private $_user = null;
     private $_password = null;
@@ -49,6 +50,7 @@ class LinkShare extends \Oara\Network
         $this->_user = $credentials ['user'];
         $this->_password = $credentials ['password'];
         $this->_idSite = $credentials ['idSite'];
+        $this->_groupedResults = (isset($credentials ['groupedResults'])) ? $credentials ['groupedResults'] : false;
         $this->_client = new \Oara\Curl\Access ($credentials);
 
         $loginUrl = 'https://login.linkshare.com/sso/login?service=' . \urlencode("http://cli.linksynergy.com/cli/publisher/home.php");
@@ -335,40 +337,83 @@ class LinkShare extends \Oara\Network
                     $transactionData = \str_getcsv($exportData [$j], ",");
 
                     if (count($transactionData) > 10 && (count($merchantIdList)==0 || isset($merchantIdList[$transactionData [3]]))) {
-                        $transaction = Array();
-                        $transaction['merchantId'] = ( int )$transactionData[3];
-                        $transaction['merchantName'] = $transactionData[4];
-                        $transactionDate = \DateTime::createFromFormat("m/d/y H:i:s", $transactionData[1] . " " . $transactionData[2]);
 
-                        // $transaction['date'] = $transactionDate->format("Y-m-d H:i:s");
-                        $transaction['date'] = $transactionDate->format("Y-m-d H:i:s") . '+00:00';
+                        // IF THE RESULTS SHOULD BE GROUPED BY ORDER INSTEAD OF LISTING SINGLE ITEMS IN THE ORDER
+                        if($this->_groupedResults){
+                            if (!isset($totalTransactions[$transactionData[0]])) {
+                                $totalTransactions[$transactionData [0]] = Array();
+                                $totalTransactions[$transactionData [0]]['date'] = '';
+                                $totalTransactions[$transactionData [0]]['custom_id'] = '';
+                                $totalTransactions[$transactionData [0]]['unique_id'] = '';
+                                $totalTransactions[$transactionData [0]]['currency'] = '';
+                                $totalTransactions[$transactionData [0]]['status'] = '';
+                                $totalTransactions[$transactionData [0]]['amount'] = 0;
+                                $totalTransactions[$transactionData [0]]['commission'] = 0;
+                                $totalTransactions[$transactionData [0]]['IP'] = '';    // not available
+                            }
 
-                        if (isset($signatureMap[$transactionData [0]])) {
-                            $transaction['custom_id'] = $signatureMap[$transactionData [0]];
+                            $transactionDate = \DateTime::createFromFormat("m/d/y H:i:s", $transactionData [1] . " " . $transactionData [2]);
+                            $totalTransactions[$transactionData [0]]['date'] = $transactionDate->format("Y-m-d H:i:s");
+    
+    
+                            if (isset($signatureMap[$transactionData [0]])) {
+                                $totalTransactions[$transactionData [0]]['custom_id'] = $signatureMap[$transactionData [0]];
+                            }
+    
+                            $totalTransactions[$transactionData [0]]['unique_id'] = $transactionData[0];
+                            $totalTransactions[$transactionData [0]]['currency'] = $transactionData [11];
+    
+                            $sales = \Oara\Utilities::parseDouble($transactionData [7]);
+    
+                            if ($sales != 0) {
+                                if (isset($totalTransactions[$transactionData [0]]['status']) && $totalTransactions[$transactionData [0]]['status'] == \Oara\Utilities::STATUS_PENDING) {
+                                    $totalTransactions[$transactionData [0]]['status'] = \Oara\Utilities::STATUS_PENDING;
+                                } else {
+                                    $totalTransactions[$transactionData [0]]['status'] = \Oara\Utilities::STATUS_CONFIRMED;
+                                }
+                            } else if ($sales == 0) {
+                                $totalTransactions[$transactionData [0]]['status'] = \Oara\Utilities::STATUS_PENDING;
+                            }
+    
+                            $totalTransactions[$transactionData [0]]['amount'] += $sales;
+                            $totalTransactions[$transactionData [0]]['commission'] += \Oara\Utilities::parseDouble($transactionData [9]);    
                         }
-                        $transaction['unique_id'] = $transactionData [10];
-                        $transaction['currency'] = $transactionData [11];
-
-                        // $sales = $filter->filter($transactionData [7]);
-                        $sales = \Oara\Utilities::parseDouble($transactionData [7]);
-
-                        if ($sales != 0) {
-                            $transaction['status'] = \Oara\Utilities::STATUS_CONFIRMED;
-                        } else if ($sales == 0) {
-                            $transaction['status'] = \Oara\Utilities::STATUS_PENDING;
+                        else{
+                            $transaction = Array();
+                            $transaction['merchantId'] = ( int )$transactionData[3];
+                            $transaction['merchantName'] = $transactionData[4];
+                            $transactionDate = \DateTime::createFromFormat("m/d/y H:i:s", $transactionData[1] . " " . $transactionData[2]);
+    
+                            // $transaction['date'] = $transactionDate->format("Y-m-d H:i:s");
+                            $transaction['date'] = $transactionDate->format("Y-m-d H:i:s") . '+00:00';
+    
+                            if (isset($signatureMap[$transactionData [0]])) {
+                                $transaction['custom_id'] = $signatureMap[$transactionData [0]];
+                            }
+                            $transaction['unique_id'] = $transactionData [10];
+                            $transaction['currency'] = $transactionData [11];
+    
+                            // $sales = $filter->filter($transactionData [7]);
+                            $sales = \Oara\Utilities::parseDouble($transactionData [7]);
+    
+                            if ($sales != 0) {
+                                $transaction['status'] = \Oara\Utilities::STATUS_CONFIRMED;
+                            } else if ($sales == 0) {
+                                $transaction['status'] = \Oara\Utilities::STATUS_PENDING;
+                            }
+    
+                            $transaction['amount'] = \Oara\Utilities::parseDouble($transactionData [7]);
+    
+                            $transaction['commission'] = \Oara\Utilities::parseDouble($transactionData [9]);
+    
+                            if ($transaction['commission'] < 0) {
+                                $transaction['amount'] = abs($transaction['amount']);
+                                $transaction['commission'] = abs($transaction['commission']);
+                                $transaction['status'] = \Oara\Utilities::STATUS_DECLINED;
+                            }
+                            $transaction['IP'] = '';    // not available
+                            $totalTransactions [] = $transaction;                            
                         }
-
-                        $transaction['amount'] = \Oara\Utilities::parseDouble($transactionData [7]);
-
-                        $transaction['commission'] = \Oara\Utilities::parseDouble($transactionData [9]);
-
-                        if ($transaction['commission'] < 0) {
-                            $transaction['amount'] = abs($transaction['amount']);
-                            $transaction['commission'] = abs($transaction['commission']);
-                            $transaction['status'] = \Oara\Utilities::STATUS_DECLINED;
-                        }
-                        $transaction['IP'] = '';    // not available
-                        $totalTransactions [] = $transaction;
                     }
                 }
             }
