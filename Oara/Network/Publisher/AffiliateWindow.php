@@ -229,7 +229,15 @@ class AffiliateWindow extends \Oara\Network
                         $transaction['custom_id'] = $transactionObject->clickRefs->clickRef;
                     }
                     $transaction['type'] = $transactionObject->type;
-                    $transaction['status'] = ($transactionObject->commissionStatus == 'approved') ? 'confirmed' : $transactionObject->commissionStatus;
+                    if($transactionObject->commissionStatus == 'approved'){
+                        $transaction['status'] = 'confirmed';
+                    }
+                    elseif($transactionObject->commissionStatus == 'declined' || $transactionObject->commissionStatus == 'deleted'){
+                        $transaction['status'] = 'declined';
+                    }
+                    elseif($transactionObject->commissionStatus == 'pending'){
+                        $transaction['status'] = 'pending';
+                    }
                     $transaction['amount'] = \Oara\Utilities::parseDouble($transactionObject->saleAmount->amount);
                     $transaction['commission'] = \Oara\Utilities::parseDouble($transactionObject->commissionAmount->amount);
                     $transaction['currency'] = $transactionObject->commissionAmount->currency;
