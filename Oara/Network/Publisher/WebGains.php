@@ -52,7 +52,9 @@ class WebGains extends \Oara\Network
 
         $wsdlUrl = 'http://ws.webgains.com/aws.php';
         //Setting the client.
-        $this->_soapClient = new \SoapClient($wsdlUrl, array('login' => $this->_user,
+        $this->_soapClient = new \SoapClient($wsdlUrl, array(
+		'trace'=> 1, 'exceptions' => 1,
+		'login' => $this->_user,
             'encoding' => 'UTF-8',
             'password' => $this->_password,
             'compression' => SOAP_COMPRESSION_ACCEPT | SOAP_COMPRESSION_GZIP | SOAP_COMPRESSION_DEFLATE,
@@ -184,7 +186,13 @@ class WebGains extends \Oara\Network
     {
         $merchantList = Array();
         foreach ($this->_campaignMap as $campaignKey => $campaignValue) {
-            $merchants = $this->_soapClient->getProgramsWithMembershipStatus($this->_user, $this->_password, $campaignKey);
+            
+			try {
+				$merchants = $this->_soapClient->getProgramsWithMembershipStatus($this->_user, $this->_password, $campaignKey);
+			} catch (\SoapFault $e) {
+				$merchants = str_replace(array(""),"",$this->_soapClient->__getLastResponse());
+			}			
+			
             foreach ($merchants as $merchant) {
                 // Get All programs even if not active - 2018-04-23 <PN>
                 // if ($merchant->programMembershipStatusName == 'Live' || $merchant->programMembershipStatusName == 'Joined') {
@@ -225,7 +233,6 @@ class WebGains extends \Oara\Network
             foreach ($transactionList as $transactionObject) {
                 // Dont'check for a valid program - <PN> 2017-07-05
                 // if (isset($merchantListIdList[$transactionObject->programID])) {
-
                     $transaction = array();
                     $transaction['merchantId'] = $transactionObject->programID;
                     $transactionDate = \DateTime::createFromFormat("Y-m-d\TH:i:s", $transactionObject->date);
@@ -237,6 +244,7 @@ class WebGains extends \Oara\Network
                     $transaction['status'] = null;
                     $transaction['amount'] = $transactionObject->saleValue;
                     $transaction['commission'] = $transactionObject->commission;
+
                     // Check both for status + paymentStatus
                     if ($transactionObject->status == 'confirmed') {
                         $transaction['status'] = \Oara\Utilities::STATUS_CONFIRMED;
@@ -253,6 +261,7 @@ class WebGains extends \Oara\Network
                     else {
                         $transaction['paid'] = false;
                     }
+
                     $transaction['currency'] = $transactionObject->currency;
                     $totalTransactions[] = $transaction;
                 // }
