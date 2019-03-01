@@ -287,7 +287,7 @@ class AffiliateFuture extends \Oara\Network
                 foreach ($xml->TransactionList as $transaction) {
                     $date = new \DateTime(self::findAttribute($transaction, 'TransactionDate'));
 
-                    if (count($merchantIdMap)== 0 || isset($merchantIdMap[(int)self::findAttribute($transaction, 'ProgrammeID')]) &&
+                    if (count($merchantIdMap)== 0 || isset($merchantIdMap[(int)self::findAttribute($transaction, 'MerchantID')]) &&
                         ($date->format("Y-m-d H:i:s") >= $dStartDate->format("Y-m-d H:i:s")) &&
                         ($date->format("Y-m-d H:i:s") <= $dEndDate->format("Y-m-d H:i:s"))) {
 
