@@ -44,6 +44,13 @@ class ImpactRadius extends \Oara\Network
      */
     public function login($credentials)
     {
+		
+		$this->_credentials = $credentials;
+		$this->_accountSid = $this->_credentials['api-sid'];
+        $this->_authToken = $this->_credentials['api-token'];
+		
+		return true;
+		
         $this->_credentials = $credentials;
         $this->_client = new \Oara\Curl\Access($credentials);
 
