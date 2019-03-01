@@ -230,8 +230,13 @@ class ImpactRadius extends \Oara\Network
                     $transactionDate = \DateTime::createFromFormat("Y-m-d\TH:i:s", \substr((string)$action->EventDate,0,19));
                     $transaction['date'] = $transactionDate->format("Y-m-d H:i:s");
 
-                    $transactionDate = \DateTime::createFromFormat("Y-m-d\TH:i:s", \substr((string)$action->ReferringDate,0,19));
-                    $transaction['date_click'] = $transactionDate->format("Y-m-d H:i:s");
+					if((string)$action->ReferringDate != ''){
+						$transactionDate = \DateTime::createFromFormat("Y-m-d\TH:i:s", \substr((string)$action->ReferringDate,0,19));
+						$transaction['date_click'] = $transactionDate->format("Y-m-d H:i:s");
+					}
+					else{
+						$transaction['date_click'] = $transaction['date'];
+					}
 
                     if ((string)$action->SharedId != '') {
                         $transaction['custom_id'] = (string)$action->SharedId;
