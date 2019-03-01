@@ -52,9 +52,7 @@ class WebGains extends \Oara\Network
 
         $wsdlUrl = 'http://ws.webgains.com/aws.php';
         //Setting the client.
-        $this->_soapClient = new \SoapClient($wsdlUrl, array(
-		'trace'=> 1, 'exceptions' => 1,
-		'login' => $this->_user,
+        $this->_soapClient = new \SoapClient($wsdlUrl, array('login' => $this->_user,
             'encoding' => 'UTF-8',
             'password' => $this->_password,
             'compression' => SOAP_COMPRESSION_ACCEPT | SOAP_COMPRESSION_GZIP | SOAP_COMPRESSION_DEFLATE,
@@ -184,27 +182,37 @@ class WebGains extends \Oara\Network
      */
     public function getMerchantList()
     {
-        $merchantList = Array();
-        foreach ($this->_campaignMap as $campaignKey => $campaignValue) {
-            
-			try {
-				$merchants = $this->_soapClient->getProgramsWithMembershipStatus($this->_user, $this->_password, $campaignKey);
-			} catch (\SoapFault $e) {
-				$merchants = str_replace(array(""),"",$this->_soapClient->__getLastResponse());
-			}			
-			
-            foreach ($merchants as $merchant) {
-                // Get All programs even if not active - 2018-04-23 <PN>
-                // if ($merchant->programMembershipStatusName == 'Live' || $merchant->programMembershipStatusName == 'Joined') {
-                    $merchantList[$merchant->programID]["cid"] = $merchant->programID;
-                    $merchantList[$merchant->programID]["name"] = $merchant->programName;
-                    // Added more info - 2018-04-23 <PN>
-                    $merchantList[$merchant->programID]["url"] = $merchant->programURL;
-                    $merchantList[$merchant->programID]["status"] = $merchant->programMembershipStatusName;
-                // }
-            }
+	    /**
+	     * Webgains Programs API
+	     * https://api.webgains.com/2.0/programs
+	     */
+	    $statisticsActions = "https://api.webgains.com/2.0/programs";
+	    $key = '';
+	    if (isset($_ENV['WEBGAINS_API_KEY'])){
+	    	$key = $_ENV['WEBGAINS_API_KEY'];
+	    }
+	    $merchants = Array();
+	    foreach ($this->_campaignMap as $campaignID => $campaignValue) {
+	        $ch = curl_init();
+	        curl_setopt($ch, CURLOPT_URL, $statisticsActions . '?key=' . $key .'&campaignid='. $campaignID);
+	        curl_setopt($ch, CURLOPT_POST, false);
+	        curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+
+	        $curl_results = curl_exec($ch);
+	        curl_close($ch);
+	        $a_merchants = json_decode($curl_results, true);
+
+	        foreach ($a_merchants as $merchantJson) {
+		        $obj = Array();
+		        $obj['cid'] = $merchantJson["id"];
+		        $obj['name'] = $merchantJson["name"];
+		        $obj['status'] = $merchantJson["status"];
+		        $obj['url'] = $merchantJson["homepageURL"];
+		        $merchants[] = $obj;
+	        }
+
         }
-        return $merchantList;
+        return $merchants;
     }
 
 
@@ -219,7 +227,7 @@ class WebGains extends \Oara\Network
     {
         $totalTransactions = Array();
 
-        $merchantListIdList = \Oara\Utilities::getMerchantIdMapFromMerchantList($merchantList);
+        //$merchantListIdList = \Oara\Utilities::getMerchantIdMapFromMerchantList($merchantList);
 
         foreach ($this->_campaignMap as $campaignKey => $campaignValue) {
             try {
@@ -233,6 +241,7 @@ class WebGains extends \Oara\Network
             foreach ($transactionList as $transactionObject) {
                 // Dont'check for a valid program - <PN> 2017-07-05
                 // if (isset($merchantListIdList[$transactionObject->programID])) {
+
                     $transaction = array();
                     $transaction['merchantId'] = $transactionObject->programID;
                     $transactionDate = \DateTime::createFromFormat("Y-m-d\TH:i:s", $transactionObject->date);
@@ -244,7 +253,6 @@ class WebGains extends \Oara\Network
                     $transaction['status'] = null;
                     $transaction['amount'] = $transactionObject->saleValue;
                     $transaction['commission'] = $transactionObject->commission;
-
                     // Check both for status + paymentStatus
                     if ($transactionObject->status == 'confirmed') {
                         $transaction['status'] = \Oara\Utilities::STATUS_CONFIRMED;
@@ -261,7 +269,6 @@ class WebGains extends \Oara\Network
                     else {
                         $transaction['paid'] = false;
                     }
-
                     $transaction['currency'] = $transactionObject->currency;
                     $totalTransactions[] = $transaction;
                 // }
