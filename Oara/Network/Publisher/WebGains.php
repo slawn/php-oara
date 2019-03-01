@@ -46,6 +46,7 @@ class WebGains extends \Oara\Network
             return;
         }
 
+		$this->_credentials = $credentials;
         $this->_user = $credentials['user'];
         $this->_password = $credentials['password'];
         $this->_client = new \Oara\Curl\Access($credentials);
@@ -187,11 +188,14 @@ class WebGains extends \Oara\Network
 	     * https://api.webgains.com/2.0/programs
 	     */
 	    $statisticsActions = "https://api.webgains.com/2.0/programs";
+		$merchants = Array();
 	    $key = '';
-	    if (isset($_ENV['WEBGAINS_API_KEY'])){
-	    	$key = $_ENV['WEBGAINS_API_KEY'];
+	    if (isset($this->_credentials['api-key'])){
+	    	$key = $this->_credentials['api-key'];
 	    }
-	    $merchants = Array();
+		else{
+			return $merchants;
+		}
 	    foreach ($this->_campaignMap as $campaignID => $campaignValue) {
 	        $ch = curl_init();
 	        curl_setopt($ch, CURLOPT_URL, $statisticsActions . '?key=' . $key .'&campaignid='. $campaignID);
