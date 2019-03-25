@@ -293,7 +293,7 @@ class AffiliateFuture extends \Oara\Network
 
                         $obj = Array();
                         $obj['currency'] = 'GBP'; // Affiliate Future doesn't handle currencies, default is Pound!
-                        $obj['merchantId'] = self::findAttribute($transaction, 'ProgrammeID');
+                        $obj['merchantId'] = self::findAttribute($transaction, 'MerchantID');
                         $obj['date'] = $date->format("Y-m-d H:i:s");
                         if (self::findAttribute($transaction, 'TrackingReference') != null) {
                             $obj['custom_id'] = self::findAttribute($transaction, 'TrackingReference');
