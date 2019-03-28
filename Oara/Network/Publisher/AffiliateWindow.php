@@ -221,17 +221,17 @@ class AffiliateWindow extends \Oara\Network
                     $transaction['date'] = $date->format("Y-m-d H:i:s");
                     $transaction['custom_id'] = '';
                     if (is_object($transactionObject->clickRefs)) {
-                        if (property_exists($transactionObject->clickRefs,'clickRef') && $transactionObject->clickRefs->clickRef != null && $transactionObject->clickRefs->clickRef != 0)
+                        if (property_exists($transactionObject->clickRefs,'clickRef') && $transactionObject->clickRefs->clickRef != null && $transactionObject->clickRefs->clickRef !== 0)
                             $transaction['custom_id'] = $transactionObject->clickRefs->clickRef;
-                        else if (property_exists($transactionObject->clickRefs,'clickRef2') && $transactionObject->clickRefs->clickRef2 != null && $transactionObject->clickRefs->clickRef2 != 0)
+                        else if (property_exists($transactionObject->clickRefs,'clickRef2') && $transactionObject->clickRefs->clickRef2 != null && $transactionObject->clickRefs->clickRef2 !== 0)
                             $transaction['custom_id'] = $transactionObject->clickRefs->clickRef2;
-                        else if (property_exists($transactionObject->clickRefs,'clickRef3') && $transactionObject->clickRefs->clickRef3 != null && $transactionObject->clickRefs->clickRef3 != 0)
+                        else if (property_exists($transactionObject->clickRefs,'clickRef3') && $transactionObject->clickRefs->clickRef3 != null && $transactionObject->clickRefs->clickRef3 !== 0)
                             $$transaction['custom_id'] = $transactionObject->clickRefs->clickRef3;
-                        else if (property_exists($transactionObject->clickRefs,'clickRef4') && $transactionObject->clickRefs->clickRef4 != null && $transactionObject->clickRefs->clickRef4 != 0)
+                        else if (property_exists($transactionObject->clickRefs,'clickRef4') && $transactionObject->clickRefs->clickRef4 != null && $transactionObject->clickRefs->clickRef4 !== 0)
                             $transaction['custom_id'] = $transactionObject->clickRefs->clickRef4;
-                        else if (property_exists($transactionObject->clickRefs,'clickRef5') && $transactionObject->clickRefs->clickRef5 != null && $transactionObject->clickRefs->clickRef5 != 0)
+                        else if (property_exists($transactionObject->clickRefs,'clickRef5') && $transactionObject->clickRefs->clickRef5 != null && $transactionObject->clickRefs->clickRef5 !== 0)
                             $transaction['custom_id'] = $transactionObject->clickRefs->clickRef5;
-                        else if (property_exists($transactionObject->clickRefs,'clickRef6') && $transactionObject->clickRefs->clickRef6 != null && $transactionObject->clickRefs->clickRef6 != 0)
+                        else if (property_exists($transactionObject->clickRefs,'clickRef6') && $transactionObject->clickRefs->clickRef6 != null && $transactionObject->clickRefs->clickRef6 !== 0)
                             $transaction['custom_id'] = $transactionObject->clickRefs->clickRef6;
                     }
                     $transaction['type'] = $transactionObject->type;
