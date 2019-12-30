@@ -118,7 +118,7 @@ class CommissionJunctionGraphQL extends \Oara\Network
                 }
             
                 if ($singleTransaction['pubCommissionAmountPubCurrency'] == 0) {
-                    $transactions[$i]['status'] = \Oara\Utilities::STATUS_PENDING;
+                    $transactions[$i]['status'] = \Oara\Utilities::STATUS_DECLINED;
                 }	
             
                 $transactions[$i]['aid']                = $singleTransaction['aid'];
