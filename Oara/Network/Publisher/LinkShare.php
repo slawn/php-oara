@@ -37,10 +37,11 @@ class LinkShare extends \Oara\Network
     private $_client = null;
     private $_siteList = array();
     private $_idSite = null;
-    private $_groupedResults = false;
     private $_token = null;
     private $_user = null;
     private $_password = null;
+    private $_bearer = null;
+    private $_groupedResults = false;
 
     /**
      * @param $credentials
@@ -50,38 +51,65 @@ class LinkShare extends \Oara\Network
         $this->_user = $credentials ['user'];
         $this->_password = $credentials ['password'];
         $this->_idSite = $credentials ['idSite'];
+        $this->_linkshare_token = $credentials ['LINKSHARE_TOKEN'];
+        $this->_linkshare_security_token = $credentials ['LINKSHARE_SECURITY_TOKEN'];
         $this->_groupedResults = (isset($credentials ['groupedResults'])) ? $credentials ['groupedResults'] : false;
-        $this->_client = new \Oara\Curl\Access ($credentials);
 
-        $loginUrl = 'https://login.linkshare.com/sso/login?service=' . \urlencode("http://cli.linksynergy.com/cli/publisher/home.php");
-        $valuesLogin = array(
-            new \Oara\Curl\Parameter ('HEALTHCHECK', 'HEALTHCHECK PASSED.'),
-            new \Oara\Curl\Parameter ('username', $this->_user),
-            new \Oara\Curl\Parameter ('password', $this->_password),
-            new \Oara\Curl\Parameter ('login', 'Log In')
-        );
-
-        $urls = array();
-        $urls [] = new \Oara\Curl\Request ($loginUrl, array());
-        $exportReport = $this->_client->get($urls);
-        $doc = new \DOMDocument();
-        @$doc->loadHTML($exportReport[0]);
-        $xpath = new \DOMXPath($doc);
-        $hidden = $xpath->query('//input[@type="hidden"]');
-        foreach ($hidden as $values) {
-            $valuesLogin[] = new \Oara\Curl\Parameter($values->getAttribute("name"), $values->getAttribute("value"));
+        // If the Bearer authentication token is defined into environment use it directly to get the access token - <PN> 2019-12-10
+        if (isset($_ENV['LINKSHARE_TOKEN']) || isset($this->_linkshare_token)) {
+            $this->_bearer = (isset($_ENV['LINKSHARE_TOKEN'])) ? $_ENV['LINKSHARE_TOKEN'] : $this->_linkshare_token;
+            if (!empty($this->_bearer)) {
+                $this->getToken($this->_bearer);
+                // Create a dummy site structure (allows access to only one site at a time)
+                $site = new \stdClass ();
+                $site->website = '';
+                $site->url = '';
+                $site->id = $this->_idSite;
+                $site->token = $this->_token;
+                if (isset($_ENV['LINKSHARE_SECURITY_TOKEN']) || isset($this->_linkshare_security_token)) {
+                    // Get security token from the environment - 2019-10-12 <PN>
+                    $site->secureToken = (isset($_ENV['LINKSHARE_SECURITY_TOKEN'])) ? $_ENV['LINKSHARE_SECURITY_TOKEN'] : $this->_linkshare_security_token;
+                }
+                else {
+                    $site->secureToken = '';
+                }
+                $siteList [] = $site;
+                $this->_siteList = $siteList;
+            }
         }
-        $doc = new \DOMDocument();
-        @$doc->loadHTML($exportReport[0]);
-        $xpath = new \DOMXPath($doc);
-        $formList = $xpath->query('//form');
-        foreach ($formList as $form) {
-            $loginUrl = "https://login.linkshare.com" . $form->getAttribute("action");
-        }
-        $urls = array();
-        $urls [] = new \Oara\Curl\Request ($loginUrl, $valuesLogin);
-        $this->_client->post($urls);
+        else {
+            // Try to login as a dashboard user to grab token from web services page
+            $this->_client = new \Oara\Curl\Access ($credentials);
 
+            $loginUrl = 'https://login.linkshare.com/sso/login?service=' . \urlencode("http://cli.linksynergy.com/cli/publisher/home.php");
+            $valuesLogin = array(
+                new \Oara\Curl\Parameter ('HEALTHCHECK', 'HEALTHCHECK PASSED.'),
+                new \Oara\Curl\Parameter ('username', $this->_user),
+                new \Oara\Curl\Parameter ('password', $this->_password),
+                new \Oara\Curl\Parameter ('login', 'Log In')
+            );
+
+            $urls = array();
+            $urls [] = new \Oara\Curl\Request ($loginUrl, array());
+            $exportReport = $this->_client->get($urls);
+            $doc = new \DOMDocument();
+            @$doc->loadHTML($exportReport[0]);
+            $xpath = new \DOMXPath($doc);
+            $hidden = $xpath->query('//input[@type="hidden"]');
+            foreach ($hidden as $values) {
+                $valuesLogin[] = new \Oara\Curl\Parameter($values->getAttribute("name"), $values->getAttribute("value"));
+            }
+            $doc = new \DOMDocument();
+            @$doc->loadHTML($exportReport[0]);
+            $xpath = new \DOMXPath($doc);
+            $formList = $xpath->query('//form');
+            foreach ($formList as $form) {
+                $loginUrl = "https://login.linkshare.com" . $form->getAttribute("action");
+            }
+            $urls = array();
+            $urls [] = new \Oara\Curl\Request ($loginUrl, $valuesLogin);
+            $this->_client->post($urls);
+        }
     }
 
     /**
@@ -110,6 +138,22 @@ class LinkShare extends \Oara\Network
         if (!empty($this->_token)) {
             return $this->_token;
         }
+
+        if (empty($apiKey)) {
+            if (!empty($this->_bearer)) {
+                $apiKey = $this->_bearer;
+            }
+            else {
+                // If the Bearer authentication token is defined into environment use it directly to get the access token - <PN> 2019-12-10
+                if (isset($_ENV['LINKSHARE_TOKEN']) || isset($this->_linkshare_token)) {
+                    $this->_bearer = (isset($_ENV['LINKSHARE_TOKEN'])) ? $_ENV['LINKSHARE_TOKEN'] : $this->_linkshare_token;
+                    if (!empty($this->_bearer)) {
+                        $apiKey = $this->_bearer;
+                    }
+                }
+            }
+        }
+
         // Retrieve access token
         $loginUrl = "https://api.rakutenmarketing.com/token";
 
@@ -149,6 +193,14 @@ class LinkShare extends \Oara\Network
      */
     public function checkConnection()
     {
+        if ($this->_siteList) {
+            // Already have a valid connection!
+            return true;
+        }
+
+        // OLD connection trying to simulate a user login to scrape the report API token
+        // Replaced on 2019-12-10 with raw LINKSHARE_SECURITY_TOKEN set into environment and encrypted in getTransactionList() function
+        // ... It's not supposed to enter here anymore if login() succeeded
         $connection = false;
 
         $urls = array();
@@ -225,47 +277,63 @@ class LinkShare extends \Oara\Network
         return $connection;
     }
 
-    /**
-     * @return array
-     * @throws Exception
-     */
+
+
     public function getMerchantList()
     {
-        $merchants = array();
-        $merchantIdMap = array();
-        foreach ($this->_siteList as $site) {
-
-            $urls = array();
-            $urls [] = new \Oara\Curl\Request ($site->url, array());
-            $this->_client->get($urls);
-
-            $urls = array();
-            $urls [] = new \Oara\Curl\Request ('http://cli.linksynergy.com/cli/publisher/programs/carDownload.php', array());
-            $result = $this->_client->get($urls);
-
-            $exportData = \explode(",\n", $result [0]);
-
-            $num = \count($exportData);
-            for ($i = 1; $i < $num - 1; $i++) {
-                $merchantArray = \str_getcsv($exportData [$i], ",", '"');
-                if (!\in_array($merchantArray [2], $merchantIdMap)) {
-                    $obj = Array();
-                    if (!isset ($merchantArray [2])) {
-                        throw new \Exception ("Error getting merchants");
-                    }
-                    $obj['cid'] = ( int )$merchantArray[2];
-                    $obj['name'] = $merchantArray[0];
-                    $obj['description'] = $merchantArray[3];
-                    $obj['url'] = $merchantArray[1];
-                    $obj['status'] = $merchantArray[7];
-                    $obj['termination_date'] = $merchantArray[21];
-
-                    $merchants [] = $obj;
-                    $merchantIdMap [] = $obj ['cid'];
-                }
+        $arrResult = array();
+        try {
+            if (empty($this->_token)) {
+                $this->_token = $this->getToken('');
             }
+
+            // https://api.rakutenmarketing.com/linklocator/1.0/getMerchByAppStatus/{status}
+
+            // Get all merchants with status "approved"
+
+            $url = "https://api.rakutenmarketing.com/linklocator/1.0/getMerchByAppStatus/approved";
+            $arrResult = array();
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_POST, FALSE);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, FALSE);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, array("Authorization: Bearer " . $this->_token));
+
+            $curl_results = curl_exec($ch);
+            curl_close($ch);
+
+            $response = xml2array($curl_results);
+            if (!is_array($response) || count($response) <= 0) {
+                $message = 'Linkshare: getMerchantList XML Error';
+                throw new \Exception($message);
+            }
+            if (!isset($response['ns1:getMerchByAppStatusResponse'])) {
+                $message = 'Linkshare: getMerchantList XML Error';
+                throw new \Exception($message);
+            }
+            $result = $response['ns1:getMerchByAppStatusResponse'];
+            $merchants = $result['ns1:return'];
+            foreach ($merchants as $key => $merchant) {
+                $mid = isset($merchant['ns1:mid']) ? $merchant['ns1:mid'] : '';
+                $name = isset($merchant['ns1:name']) ? $merchant['ns1:name'] : '';
+                $status = isset($merchant['ns1:applicationStatus']) ? $merchant['ns1:applicationStatus'] : '';
+                $arrResult[] = array(
+                    'cid' => $mid,
+                    'name' => $name,
+                    'status' => $status,
+                    'termination_date' => null,
+                    'url' => null,
+                );
+            }
+            return $arrResult;
         }
-        return $merchants;
+        catch (\Exception $e) {
+            echo "LinkShare getMerchantList error: ".$e->getMessage()."\n ";
+            throw new \Exception($e);
+        }
+        return $arrResult;
     }
 
 
@@ -288,13 +356,27 @@ class LinkShare extends \Oara\Network
             if (empty($this->_sitesAllowed) || in_array($site->id, $this->_sitesAllowed)) {
                 echo "LinkShare - Get Transactions for site " . $site->id . PHP_EOL;
 
+                $security_token = $site->secureToken;
+                if (empty($security_token)) {
+                    echo "LinkShare ERROR - Empty Security Token for site " . $site->id . PHP_EOL;
+                    return $totalTransactions;
+                }
+                // Encode security token in standard Linkshare serialization structure - 2019-12-10
+                $encrypted = 'encrypteda:2:{s:5:"Token";s:{len}:"{token}";s:8:"UserType";s:9:"Publisher";}';
+                $encrypted = str_replace("{token}", $security_token, $encrypted);
+                $encrypted = str_replace("{len}", strlen($security_token), $encrypted);
+                $token64 = urlencode(base64_encode($encrypted));
+
                 // WARNING: You must create a custom report called exactly "Individual Item Report + Transaction ID + Currency"
                 // adding to the standard item report the columns "Transaction ID" and "Currency"
-                $url = "https://ran-reporting.rakutenmarketing.com/en/reports/Individual-Item-Report-%2B-Transaction-ID-%2B-Currency/filters?start_date=" . $dStartDate->format("Y-m-d") . "&end_date=" . $dEndDate->format("Y-m-d") . "&include_summary=N" . "&network=" . $this->_nid . "&tz=GMT&date_type=transaction&token=" . urlencode($site->token);
-                $result = file_get_contents($url);
+                $url = "https://ran-reporting.rakutenmarketing.com/en/reports/Individual-Item-Report-%2B-Transaction-ID-%2B-Currency/filters?start_date=" . $dStartDate->format("Y-m-d") . "&end_date=" . $dEndDate->format("Y-m-d") . "&include_summary=N" . "&network=" . $this->_nid . "&tz=GMT&date_type=transaction&token=" . $token64;
+                $result = $this->getRemoteUrl($url);
+                // $result = file_get_contents($url);
 
-                $url = "https://ran-reporting.rakutenmarketing.com/en/reports/signature-orders-report/filters?start_date=" . $dStartDate->format("Y-m-d") . "&end_date=" . $dEndDate->format("Y-m-d") . "&include_summary=N" . "&network=" . $this->_nid . "&tz=GMT&date_type=transaction&token=" . urlencode($site->token);
-                $resultSignature = file_get_contents($url);
+                // Signature Orders Report is a standard report already defined on the dashboard reports section
+                $url = "https://ran-reporting.rakutenmarketing.com/en/reports/signature-orders-report/filters?start_date=" . $dStartDate->format("Y-m-d") . "&end_date=" . $dEndDate->format("Y-m-d") . "&include_summary=N" . "&network=" . $this->_nid . "&tz=GMT&date_type=transaction&token=" . $token64;
+                $resultSignature = $this->getRemoteUrl($url);
+                // $resultSignature = file_get_contents($url);
 
                 $signatureMap = array();
                 $exportData = str_getcsv($resultSignature, "\n");
@@ -304,14 +386,13 @@ class LinkShare extends \Oara\Network
                     $signatureMap[$signatureData[3]] = $signatureData[0];
                 }
 
-
                 $exportData = \str_getcsv($result, "\n");
                 $num = \count($exportData);
                 for ($j = 1; $j < $num; $j++) {
                     $transactionData = \str_getcsv($exportData [$j], ",");
 
                     if (count($transactionData) > 10 && (count($merchantIdList)==0 || isset($merchantIdList[$transactionData [3]]))) {
-
+                        
                         // IF THE RESULTS SHOULD BE GROUPED BY ORDER INSTEAD OF LISTING SINGLE ITEMS IN THE ORDER
                         if($this->_groupedResults){
                             if (!isset($totalTransactions[$transactionData[0]])) {
@@ -406,24 +487,33 @@ class LinkShare extends \Oara\Network
         $vouchers = array();
 
         try {
-
-            $token = $this->getToken($apiKey);
+            if (empty($this->_token)) {
+                $this->_token = $this->getToken($apiKey);
+            }
 
             // https://api.rakutenmarketing.com/coupon/1.0?category=16&promotiontype=31&network=1&resultsperpage=100&pagenumber=2
 
+            
             $loginUrl = "https://api.rakutenmarketing.com/coupon/1.0";
             $currentPage = 1;
             $arrResult = array();
-
+            if (strpos($network,',') !== false) {
+                // If more than one networks are provided ... don't use network parameter to get ALL networks - 2019-06-24 <PN>
+                $network = null;
+            }
             while (true) {
                 $params = array(
                     // Optional parameters category / promotiontype
                     // new \Oara\Curl\Parameter('category', '1|2|3|4|5|6|7|8'),
                     // new \Oara\Curl\Parameter('promotiontype', 31),
-                    new \Oara\Curl\Parameter('network', $network),
+                    // new \Oara\Curl\Parameter('network', $network),
                     new \Oara\Curl\Parameter('resultsperpage', 100),
                     new \Oara\Curl\Parameter('pagenumber', $currentPage)
                 );
+                if (!empty($network) && $network == intval($network)) {
+                    // Add network parameter only if a unique valid integer value
+                    $params[] = new \Oara\Curl\Parameter('network', $network);
+                }
 
                 $p = array();
                 foreach ($params as $parameter) {
@@ -437,7 +527,7 @@ class LinkShare extends \Oara\Network
                 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, FALSE);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, array("Authorization: Bearer " . $token));
+                curl_setopt($ch, CURLOPT_HTTPHEADER, array("Authorization: Bearer " . $this->_token));
 
                 $curl_results = curl_exec($ch);
                 curl_close($ch);
@@ -445,6 +535,12 @@ class LinkShare extends \Oara\Network
                 $response = xml2array($curl_results);
                 if (!is_array($response) || count($response) <= 0) {
                     return $arrResult;
+                }
+                if (!isset($response['couponfeed'])) {
+                    if (isset($response['ams:fault'])) {
+                        $message = 'Linkshare: ' . $response['ams:fault']['ams:message'] . ' - ' . $response['ams:fault']['ams:description'];
+                        throw new \Exception($message);
+                    }
                 }
                 $couponfeed = $response['couponfeed'];
                 $totalMatches = $couponfeed['TotalMatches'];
@@ -593,4 +689,147 @@ class LinkShare extends \Oara\Network
 
         return $paymentHistory;
     }
+
+
+    /**
+     * Get a remote url content using Curl
+     * @param $url
+     * @return bool|string
+     */
+    private function getRemoteUrl($url)
+    {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 300);                 // 5 minutes timeout
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 300);
+        $response = curl_exec($ch);
+        curl_close($ch);
+        return $response;
+    }
+    
 }
+
+function xml2array($contents, $get_attributes=1, $priority = 'tag') { 
+    if(!$contents) return array(); 
+
+    if(!function_exists('xml_parser_create')) { 
+        //print "'xml_parser_create()' function not found!"; 
+        return array(); 
+    } 
+
+    //Get the XML parser of PHP - PHP must have this module for the parser to work 
+    $parser = xml_parser_create(''); 
+    xml_parser_set_option($parser, XML_OPTION_TARGET_ENCODING, "UTF-8"); # http://minutillo.com/steve/weblog/2004/6/17/php-xml-and-character-encodings-a-tale-of-sadness-rage-and-data-loss 
+    xml_parser_set_option($parser, XML_OPTION_CASE_FOLDING, 0); 
+    xml_parser_set_option($parser, XML_OPTION_SKIP_WHITE, 1); 
+    xml_parse_into_struct($parser, trim($contents), $xml_values); 
+    xml_parser_free($parser); 
+
+    if(!$xml_values) return;//Hmm... 
+
+    //Initializations 
+    $xml_array = array(); 
+    $parents = array(); 
+    $opened_tags = array(); 
+    $arr = array(); 
+
+    $current = &$xml_array; //Refference 
+
+    //Go through the tags. 
+    $repeated_tag_index = array();//Multiple tags with same name will be turned into an array 
+    foreach($xml_values as $data) { 
+        unset($attributes,$value);//Remove existing values, or there will be trouble 
+
+        //This command will extract these variables into the foreach scope 
+        // tag(string), type(string), level(int), attributes(array). 
+        extract($data);//We could use the array by itself, but this cooler. 
+
+        $result = array(); 
+        $attributes_data = array(); 
+         
+        if(isset($value)) { 
+            if($priority == 'tag') $result = $value; 
+            else $result['value'] = $value; //Put the value in a assoc array if we are in the 'Attribute' mode 
+        } 
+
+        //Set the attributes too. 
+        if(isset($attributes) and $get_attributes) { 
+            foreach($attributes as $attr => $val) { 
+                if($priority == 'tag') $attributes_data[$attr] = $val; 
+                else $result['attr'][$attr] = $val; //Set all the attributes in a array called 'attr' 
+            } 
+        } 
+
+        //See tag status and do the needed. 
+        if($type == "open") {//The starting of the tag '<tag>' 
+            $parent[$level-1] = &$current; 
+            if(!is_array($current) or (!in_array($tag, array_keys($current)))) { //Insert New tag 
+                $current[$tag] = $result; 
+                if($attributes_data) $current[$tag. '_attr'] = $attributes_data; 
+                $repeated_tag_index[$tag.'_'.$level] = 1; 
+
+                $current = &$current[$tag]; 
+
+            } else { //There was another element with the same tag name 
+
+                if(isset($current[$tag][0])) {//If there is a 0th element it is already an array 
+                    $current[$tag][$repeated_tag_index[$tag.'_'.$level]] = $result; 
+                    $repeated_tag_index[$tag.'_'.$level]++; 
+                } else {//This section will make the value an array if multiple tags with the same name appear together 
+                    $current[$tag] = array($current[$tag],$result);//This will combine the existing item and the new item together to make an array 
+                    $repeated_tag_index[$tag.'_'.$level] = 2; 
+                     
+                    if(isset($current[$tag.'_attr'])) { //The attribute of the last(0th) tag must be moved as well 
+                        $current[$tag]['0_attr'] = $current[$tag.'_attr']; 
+                        unset($current[$tag.'_attr']); 
+                    } 
+
+                } 
+                $last_item_index = $repeated_tag_index[$tag.'_'.$level]-1; 
+                $current = &$current[$tag][$last_item_index]; 
+            } 
+
+        } elseif($type == "complete") { //Tags that ends in 1 line '<tag />' 
+            //See if the key is already taken. 
+            if(!isset($current[$tag])) { //New Key 
+                $current[$tag] = $result; 
+                $repeated_tag_index[$tag.'_'.$level] = 1; 
+                if($priority == 'tag' and $attributes_data) $current[$tag. '_attr'] = $attributes_data; 
+
+            } else { //If taken, put all things inside a list(array) 
+                if(isset($current[$tag][0]) and is_array($current[$tag])) {//If it is already an array... 
+
+                    // ...push the new element into that array. 
+                    $current[$tag][$repeated_tag_index[$tag.'_'.$level]] = $result; 
+                     
+                    if($priority == 'tag' and $get_attributes and $attributes_data) { 
+                        $current[$tag][$repeated_tag_index[$tag.'_'.$level] . '_attr'] = $attributes_data; 
+                    } 
+                    $repeated_tag_index[$tag.'_'.$level]++; 
+
+                } else { //If it is not an array... 
+                    $current[$tag] = array($current[$tag],$result); //...Make it an array using using the existing value and the new value 
+                    $repeated_tag_index[$tag.'_'.$level] = 1; 
+                    if($priority == 'tag' and $get_attributes) { 
+                        if(isset($current[$tag.'_attr'])) { //The attribute of the last(0th) tag must be moved as well 
+                             
+                            $current[$tag]['0_attr'] = $current[$tag.'_attr']; 
+                            unset($current[$tag.'_attr']); 
+                        } 
+                         
+                        if($attributes_data) { 
+                            $current[$tag][$repeated_tag_index[$tag.'_'.$level] . '_attr'] = $attributes_data; 
+                        } 
+                    } 
+                    $repeated_tag_index[$tag.'_'.$level]++; //0 and 1 index is already taken 
+                } 
+            } 
+
+        } elseif($type == 'close') { //End of tag '</tag>' 
+            $current = &$parent[$level-1]; 
+        } 
+    } 
+     
+    return($xml_array); 
+}  
