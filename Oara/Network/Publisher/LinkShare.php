@@ -279,8 +279,12 @@ class LinkShare extends \Oara\Network
 
 
 
-    public function getMerchantList()
+    public function getMerchantList($repeatCount = 0)
     {
+        // If we are repeating the call then wait for 5 min as previous call failed
+        if($repeatCount > 0){
+            sleep(300);
+        }
         $arrResult = array();
         try {
             if (empty($this->_token)) {
@@ -306,12 +310,26 @@ class LinkShare extends \Oara\Network
 
             $response = xml2array($curl_results);
             if (!is_array($response) || count($response) <= 0) {
-                $message = 'Linkshare: getMerchantList XML Error';
-                throw new \Exception($message);
+                // Limit repeats to 5
+                if($repeatCount == 5){
+                    $message = 'Linkshare: getMerchantList XML Error';
+                    throw new \Exception($message);    
+                }
+                else{
+                    $repeatCount++;
+                    return $this->getMerchantList($repeatCount);
+                }
             }
             if (!isset($response['ns1:getMerchByAppStatusResponse'])) {
-                $message = 'Linkshare: getMerchantList XML Error';
-                throw new \Exception($message);
+                // Limit repeats to 5
+                if($repeatCount == 5){
+                    $message = 'Linkshare: getMerchantList XML Error';
+                    throw new \Exception($message);
+                }
+                else{
+                    $repeatCount++;
+                    return $this->getMerchantList($repeatCount);
+                }
             }
             $result = $response['ns1:getMerchByAppStatusResponse'];
             $merchants = $result['ns1:return'];
