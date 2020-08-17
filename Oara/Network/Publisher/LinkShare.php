@@ -48,12 +48,12 @@ class LinkShare extends \Oara\Network
      */
     public function login($credentials)
     {
-        $this->_user = $credentials ['user'];
-        $this->_password = $credentials ['password'];
-        $this->_idSite = $credentials ['idSite'];
-        $this->_linkshare_token = $credentials ['LINKSHARE_TOKEN'];
-        $this->_linkshare_security_token = $credentials ['LINKSHARE_SECURITY_TOKEN'];
-        $this->_groupedResults = (isset($credentials ['groupedResults'])) ? $credentials ['groupedResults'] : false;
+        $this->_user = $credentials['user'];
+        $this->_password = $credentials['password'];
+        $this->_idSite = $credentials['idSite'];
+        $this->_linkshare_token = $credentials['LINKSHARE_TOKEN'];
+        $this->_linkshare_security_token = $credentials['LINKSHARE_SECURITY_TOKEN'];
+        $this->_groupedResults = (isset($credentials['groupedResults'])) ? $credentials['groupedResults'] : false;
 
         // If the Bearer authentication token is defined into environment use it directly to get the access token - <PN> 2019-12-10
         if (isset($_ENV['LINKSHARE_TOKEN']) || isset($this->_linkshare_token)) {
@@ -73,7 +73,7 @@ class LinkShare extends \Oara\Network
                 else {
                     $site->secureToken = '';
                 }
-                $siteList [] = $site;
+                $siteList[] = $site;
                 $this->_siteList = $siteList;
             }
         }
@@ -90,7 +90,7 @@ class LinkShare extends \Oara\Network
             );
 
             $urls = array();
-            $urls [] = new \Oara\Curl\Request ($loginUrl, array());
+            $urls[] = new \Oara\Curl\Request ($loginUrl, array());
             $exportReport = $this->_client->get($urls);
             $doc = new \DOMDocument();
             @$doc->loadHTML($exportReport[0]);
@@ -107,7 +107,7 @@ class LinkShare extends \Oara\Network
                 $loginUrl = "https://login.linkshare.com" . $form->getAttribute("action");
             }
             $urls = array();
-            $urls [] = new \Oara\Curl\Request ($loginUrl, $valuesLogin);
+            $urls[] = new \Oara\Curl\Request ($loginUrl, $valuesLogin);
             $this->_client->post($urls);
         }
     }
@@ -205,14 +205,14 @@ class LinkShare extends \Oara\Network
 
         $urls = array();
 
-        $urls [] = new \Oara\Curl\Request ('http://cli.linksynergy.com/cli/publisher/home.php?', array());
+        $urls[] = new \Oara\Curl\Request ('http://cli.linksynergy.com/cli/publisher/home.php?', array());
         $result = $this->_client->get($urls);
 
         // Check if the credentials are right
-        if (\preg_match('/https:\/\/cli\.linksynergy\.com\/cli\/common\/logout\.php/', $result [0], $matches)) {
+        if (\preg_match('/https:\/\/cli\.linksynergy\.com\/cli\/common\/logout\.php/', $result[0], $matches)) {
 
             $urls = array();
-            $urls [] = new \Oara\Curl\Request ('https://cli.linksynergy.com/cli/publisher/my_account/marketingChannels.php', array());
+            $urls[] = new \Oara\Curl\Request ('https://cli.linksynergy.com/cli/publisher/my_account/marketingChannels.php', array());
             $exportReport = $this->_client->get($urls);
 
             $doc = new \DOMDocument();
@@ -226,49 +226,49 @@ class LinkShare extends \Oara\Network
             $resultsSites = array();
             $num = \count($tableCsv);
             for ($i = 1; $i < $num; $i++) {
-                $siteArray = \str_getcsv($tableCsv [$i], ";");
-                if (isset ($siteArray [2]) && \is_numeric($siteArray [2])) {
+                $siteArray = \str_getcsv($tableCsv[$i], ";");
+                if (isset ($siteArray[2]) && \is_numeric($siteArray[2])) {
                     $result = array();
-                    $result ["id"] = $siteArray [2];
-                    $result ["name"] = $siteArray [1];
-                    $result ["url"] = "https://cli.linksynergy.com/cli/publisher/common/changeCurrentChannel.php?sid=" . $result ["id"];
-                    $resultsSites [] = $result;
+                    $result["id"] = $siteArray[2];
+                    $result["name"] = $siteArray[1];
+                    $result["url"] = "https://cli.linksynergy.com/cli/publisher/common/changeCurrentChannel.php?sid=" . $result["id"];
+                    $resultsSites[] = $result;
                 }
             }
 
             $siteList = array();
             foreach ($resultsSites as $resultSite) {
                 $site = new \stdClass ();
-                $site->website = $resultSite ["name"];
-                $site->url = $resultSite ["url"];
+                $site->website = $resultSite["name"];
+                $site->url = $resultSite["url"];
                 $parsedUrl = \parse_url($site->url);
-                $attributesArray = \explode('&', $parsedUrl ['query']);
+                $attributesArray = \explode('&', $parsedUrl['query']);
                 $attributeMap = array();
                 foreach ($attributesArray as $attribute) {
                     $attributeValue = \explode('=', $attribute);
-                    $attributeMap [$attributeValue [0]] = $attributeValue [1];
+                    $attributeMap[$attributeValue[0]] = $attributeValue[1];
                 }
-                $site->id = $attributeMap ['sid'];
+                $site->id = $attributeMap['sid'];
                 // Login into the Site ID
                 $urls = array();
-                $urls [] = new \Oara\Curl\Request ($site->url, array());
+                $urls[] = new \Oara\Curl\Request ($site->url, array());
                 $this->_client->get($urls);
 
                 $urls = array();
-                $urls [] = new \Oara\Curl\Request ('https://cli.linksynergy.com/cli/publisher/reports/reporting.php', array());
+                $urls[] = new \Oara\Curl\Request ('https://cli.linksynergy.com/cli/publisher/reports/reporting.php', array());
                 $result = $this->_client->get($urls);
                 if (preg_match_all('/\"token_one\"\: \"(.+)\"/', $result[0], $match)) {
                     $site->token = $match[1][0];
                 }
 
                 $urls = array();
-                $urls [] = new \Oara\Curl\Request ('http://cli.linksynergy.com/cli/publisher/links/webServices.php', array());
+                $urls[] = new \Oara\Curl\Request ('http://cli.linksynergy.com/cli/publisher/links/webServices.php', array());
                 $result = $this->_client->get($urls);
                 if (preg_match_all('/<div class="token">(.+)<\/div>/', $result[0], $match)) {
                     $site->secureToken = $match[1][1];
                 }
 
-                $siteList [] = $site;
+                $siteList[] = $site;
 
             }
             $connection = true;
@@ -401,7 +401,7 @@ class LinkShare extends \Oara\Network
                 $num = count($exportData);
 
                 for ($j = 1; $j < $num; $j++) {
-                    $signatureData = str_getcsv($exportData [$j], ",");
+                    $signatureData = str_getcsv($exportData[$j], ",");
                     $orderId = $signatureData[3];
                     // BV-886 - Special case ... comma in order id ... remove it
                     if (strpos($orderId,",") !== false) {
@@ -414,9 +414,9 @@ class LinkShare extends \Oara\Network
                 $num = \count($exportData);
                 for ($j = 1; $j < $num; $j++) {					
 					try{
-						$transactionData = \str_getcsv($exportData [$j], ",");
+						$transactionData = \str_getcsv($exportData[$j], ",");
 
-						if (count($transactionData) > 10 && (count($merchantIdList)==0 || isset($merchantIdList[$transactionData [3]]))) {
+						if (count($transactionData) > 10 && (count($merchantIdList)==0 || isset($merchantIdList[$transactionData[3]]))) {
 							
 							if ($transactionData[1] === '' && strpos($transactionData[2],'/') !== false) {
 								// BV-886 - Special case ... empty field after transaction id ... remove from array
@@ -427,42 +427,42 @@ class LinkShare extends \Oara\Network
 							// IF THE RESULTS SHOULD BE GROUPED BY ORDER INSTEAD OF LISTING SINGLE ITEMS IN THE ORDER
 							if($this->_groupedResults){
 								if (!isset($totalTransactions[$transactionData[0]])) {
-									$totalTransactions[$transactionData [0]] = Array();
-									$totalTransactions[$transactionData [0]]['date'] = '';
-									$totalTransactions[$transactionData [0]]['custom_id'] = '';
-									$totalTransactions[$transactionData [0]]['unique_id'] = '';
-									$totalTransactions[$transactionData [0]]['currency'] = '';
-									$totalTransactions[$transactionData [0]]['status'] = '';
-									$totalTransactions[$transactionData [0]]['amount'] = 0;
-									$totalTransactions[$transactionData [0]]['commission'] = 0;
-									$totalTransactions[$transactionData [0]]['IP'] = '';    // not available
+									$totalTransactions[$transactionData[0]] = Array();
+									$totalTransactions[$transactionData[0]]['date'] = '';
+									$totalTransactions[$transactionData[0]]['custom_id'] = '';
+									$totalTransactions[$transactionData[0]]['unique_id'] = '';
+									$totalTransactions[$transactionData[0]]['currency'] = '';
+									$totalTransactions[$transactionData[0]]['status'] = '';
+									$totalTransactions[$transactionData[0]]['amount'] = 0;
+									$totalTransactions[$transactionData[0]]['commission'] = 0;
+									$totalTransactions[$transactionData[0]]['IP'] = '';    // not available
 								}
 
-								$transactionDate = \DateTime::createFromFormat("m/d/y H:i:s", $transactionData [1] . " " . $transactionData [2]);
-								$totalTransactions[$transactionData [0]]['date'] = $transactionDate->format("Y-m-d H:i:s");
+								$transactionDate = \DateTime::createFromFormat("m/d/y H:i:s", $transactionData[1] . " " . $transactionData[2]);
+								$totalTransactions[$transactionData[0]]['date'] = $transactionDate->format("Y-m-d H:i:s");
 		
 		
-								if (isset($signatureMap[$transactionData [0]])) {
-									$totalTransactions[$transactionData [0]]['custom_id'] = $signatureMap[$transactionData [0]];
+								if (isset($signatureMap[$transactionData[0]])) {
+									$totalTransactions[$transactionData[0]]['custom_id'] = $signatureMap[$transactionData[0]];
 								}
 		
-								$totalTransactions[$transactionData [0]]['unique_id'] = $transactionData[0];
-								$totalTransactions[$transactionData [0]]['currency'] = $transactionData [11];
+								$totalTransactions[$transactionData[0]]['unique_id'] = $transactionData[0];
+								$totalTransactions[$transactionData[0]]['currency'] = $transactionData[11];
 		
-								$sales = \Oara\Utilities::parseDouble($transactionData [7]);
+								$sales = \Oara\Utilities::parseDouble($transactionData[7]);
 		
 								if ($sales != 0) {
-									if (isset($totalTransactions[$transactionData [0]]['status']) && $totalTransactions[$transactionData [0]]['status'] == \Oara\Utilities::STATUS_PENDING) {
-										$totalTransactions[$transactionData [0]]['status'] = \Oara\Utilities::STATUS_PENDING;
+									if (isset($totalTransactions[$transactionData[0]]['status']) && $totalTransactions[$transactionData[0]]['status'] == \Oara\Utilities::STATUS_PENDING) {
+										$totalTransactions[$transactionData[0]]['status'] = \Oara\Utilities::STATUS_PENDING;
 									} else {
-										$totalTransactions[$transactionData [0]]['status'] = \Oara\Utilities::STATUS_CONFIRMED;
+										$totalTransactions[$transactionData[0]]['status'] = \Oara\Utilities::STATUS_CONFIRMED;
 									}
 								} else if ($sales == 0) {
-									$totalTransactions[$transactionData [0]]['status'] = \Oara\Utilities::STATUS_PENDING;
+									$totalTransactions[$transactionData[0]]['status'] = \Oara\Utilities::STATUS_PENDING;
 								}
 		
-								$totalTransactions[$transactionData [0]]['amount'] += $sales;
-								$totalTransactions[$transactionData [0]]['commission'] += \Oara\Utilities::parseDouble($transactionData [9]);    
+								$totalTransactions[$transactionData[0]]['amount'] += $sales;
+								$totalTransactions[$transactionData[0]]['commission'] += \Oara\Utilities::parseDouble($transactionData[9]);    
 							}
 							else{
 								$transaction = Array();
@@ -473,14 +473,14 @@ class LinkShare extends \Oara\Network
 								// $transaction['date'] = $transactionDate->format("Y-m-d H:i:s");
 								$transaction['date'] = $transactionDate->format("Y-m-d H:i:s") . '+00:00';
 		
-								if (isset($signatureMap[$transactionData [0]])) {
-									$transaction['custom_id'] = $signatureMap[$transactionData [0]];
+								if (isset($signatureMap[$transactionData[0]])) {
+									$transaction['custom_id'] = $signatureMap[$transactionData[0]];
 								}
-								$transaction['unique_id'] = $transactionData [10];
-								$transaction['currency'] = $transactionData [11];
+								$transaction['unique_id'] = $transactionData[10];
+								$transaction['currency'] = $transactionData[11];
 		
-								// $sales = $filter->filter($transactionData [7]);
-								$sales = \Oara\Utilities::parseDouble($transactionData [7]);
+								// $sales = $filter->filter($transactionData[7]);
+								$sales = \Oara\Utilities::parseDouble($transactionData[7]);
 		
 								if ($sales != 0) {
 									$transaction['status'] = \Oara\Utilities::STATUS_CONFIRMED;
@@ -488,9 +488,9 @@ class LinkShare extends \Oara\Network
 									$transaction['status'] = \Oara\Utilities::STATUS_PENDING;
 								}
 		
-								$transaction['amount'] = \Oara\Utilities::parseDouble($transactionData [7]);
+								$transaction['amount'] = \Oara\Utilities::parseDouble($transactionData[7]);
 		
-								$transaction['commission'] = \Oara\Utilities::parseDouble($transactionData [9]);
+								$transaction['commission'] = \Oara\Utilities::parseDouble($transactionData[9]);
 		
 								if ($transaction['commission'] < 0) {
 									$transaction['amount'] = abs($transaction['amount']);
@@ -498,7 +498,7 @@ class LinkShare extends \Oara\Network
 									$transaction['status'] = \Oara\Utilities::STATUS_DECLINED;
 								}
 								$transaction['IP'] = '';    // not available
-								$totalTransactions [] = $transaction;                            
+								$totalTransactions[] = $transaction;                            
 							}
 						}						
                     }
@@ -708,14 +708,14 @@ class LinkShare extends \Oara\Network
                 $paymentLines = \str_getcsv($result, "\n");
                 $number = \count($paymentLines);
                 for ($j = 1; $j < $number; $j++) {
-                    $paymentData = \str_getcsv($paymentLines [$j], ",");
+                    $paymentData = \str_getcsv($paymentLines[$j], ",");
                     $obj = array();
-                    $date = \DateTime::createFromFormat("Y-m-d", $paymentData [1]);
-                    $obj ['date'] = $date->format("Y-m-d H:i:s");
-                    $obj ['value'] = \Oara\Utilities::parseDouble($paymentData [5]);
-                    $obj ['method'] = "BACS";
-                    $obj ['pid'] = $paymentData [0];
-                    $paymentHistory [] = $obj;
+                    $date = \DateTime::createFromFormat("Y-m-d", $paymentData[1]);
+                    $obj['date'] = $date->format("Y-m-d H:i:s");
+                    $obj['value'] = \Oara\Utilities::parseDouble($paymentData[5]);
+                    $obj['method'] = "BACS";
+                    $obj['pid'] = $paymentData[0];
+                    $paymentHistory[] = $obj;
                 }
 
                 $auxStartDate->add(new \DateInterval('P1Y'));
