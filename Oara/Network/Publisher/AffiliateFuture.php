@@ -49,6 +49,12 @@ class AffiliateFuture extends \Oara\Network
             $this->_api_credentials[] = new \Oara\Curl\Parameter('passcode', $_ENV['AFFILIATE_FUTURE_API_PASSWORD']);
             return;
         }
+        elseif(isset($credentials['AFFILIATE_FUTURE_API_KEY']) && isset($credentials['AFFILIATE_FUTURE_API_PASSWORD'])){
+            // BV-883 - Api credential was passed by STANDARD CREDENTIALS SETTINGS
+            $this->_api_credentials[] = new \Oara\Curl\Parameter('key', $credentials['AFFILIATE_FUTURE_API_KEY']);
+            $this->_api_credentials[] = new \Oara\Curl\Parameter('passcode', $credentials['AFFILIATE_FUTURE_API_PASSWORD']);
+            return;            
+        }
 
         // Try to scrape the login page
         $valuesLogin = array(
